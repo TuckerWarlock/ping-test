@@ -27,6 +27,7 @@ def get_external_ip():
         return external_ip
     except ConnectionError:
         print(f'Unable to determine External IP - check connection')
+        return None
 
 
 def check_network_status():
@@ -34,8 +35,12 @@ def check_network_status():
     try:
         result = subprocess.run(['ping', '-n', '4', external_ip], stdout=subprocess.PIPE)
         return result.returncode == 0
+    except subprocess.CalledProcessError as e:
+        print(f'Error in check_network_status \n{e}')
+        return False
     except TypeError:
-        print(f'Unable to ping External IP - check connection')
+        print(f'Error pinging external IP - check connection')
+        return False
 
 
 def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
