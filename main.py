@@ -3,6 +3,7 @@ import time
 import subprocess
 import smtplib
 import requests
+from requests import ConnectionError
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -18,10 +19,23 @@ smtp_server = os.getenv('SMTP_SERVER')
 
 
 def get_external_ip():
-    response = requests.get('https://ifconfig.co/ip')
-    return response.text.strip()
-external_ip = get_external_ip()
-print(f'Your external IP address is: {external_ip}')
+    try:
+        response = requests.get('https://ifconfig.co/ip')
+        external_ip = response.text.strip()
+        if external_ip is not None:
+            print(f'Online with IP - {external_ip}')
+        return external_ip
+    except ConnectionError:
+        print(f'Unable to determine External IP - check connection')
+
+
+def check_network_status():
+    external_ip = get_external_ip()
+    try:
+        result = subprocess.run(['ping', '-n', '4', external_ip], stdout=subprocess.PIPE)
+        return result.returncode == 0
+    except TypeError:
+        print(f'Unable to ping External IP - check connection')
 
 
 def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
@@ -52,47 +66,39 @@ def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
 
 
 def send_outage_email(start_time, end_time):
+    external_ip = get_external_ip()
     # Log the details and send an email to ISP support
     subject = 'Internet Outage Details'
     body = f'Outage start time: {start_time}\nOutage end time: {end_time}\nIP Address: {external_ip}'
     send_email(subject, body, to_recipients, cc_recipients, bcc_recipients)
 
 
-def check_network_status():
-    # result = subprocess.run(['ping', '-c', '4', modem_ip], stdout=subprocess.PIPE)
-    result = subprocess.run(['ping', '-n', '4', external_ip], stdout=subprocess.PIPE)
-    return result.returncode == 0
-
-
 def main():
-    online = True
-    offline = not online
+    outage_start_time = None
+    outage = False
 
     while True:
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
-        if not check_network_status():
-            # Log the outage details
-            if not online:
-                print(f'Internet outage at {current_time}')
-                online = False
+        online = check_network_status()
+        # Network is offline
+        if not online:
+            if outage == False:
+                outage_start_time = current_time
+                print(f'Internet outage started at {outage_start_time}')
+            outage = True
+            continue
 
-            # Wait for a minute before checking again
-            time.sleep(5)
-        else:
-            if offline:
-                # Internet is back online
-                outage_end_time = time.strftime('%Y-%m-%d %H:%M:%S')
-                print(f'Internet online at {outage_end_time}')
+        # Network is back online
+        if online and outage:
+            outage_end_time = time.strftime('%Y-%m-%d %H:%M:%S')
+            print(f'Internet back online at {outage_end_time}')
+            outage = False
+            # Log the details and send an email to ISP support
+            send_outage_email(outage_start_time, outage_end_time)
 
-                # Log the details and send an email to ISP support
-                send_outage_email(current_time, outage_end_time)
-
-                # Reset the flag when coming back online
-                offline = False
-
-            # Wait for a minute before checking again
-            time.sleep(5)
+        # Wait for a minute before checking again
+        time.sleep(5)
 
 
 if __name__ == "__main__":
