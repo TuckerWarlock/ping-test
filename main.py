@@ -98,7 +98,7 @@ def main():
             send_outage_email(outage_start_time, outage_end_time)
 
         # Wait for a minute before checking again
-        time.sleep(5)
+        time.sleep(60)
 
 
 if __name__ == "__main__":
