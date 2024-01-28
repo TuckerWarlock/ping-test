@@ -2,8 +2,6 @@ import os
 import time
 import subprocess
 import smtplib
-import requests
-from requests import ConnectionError
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -18,28 +16,28 @@ email_password = os.getenv('EMAIL_PASSWORD')
 smtp_server = os.getenv('SMTP_SERVER')
 
 
-def get_external_ip():
-    try:
-        response = requests.get('https://ifconfig.co/ip')
-        external_ip = response.text.strip()
-        if external_ip is not None:
-            print(f'Online with IP - {external_ip}')
-        return external_ip
-    except ConnectionError:
-        print(f'Unable to determine External IP - check connection')
-        return None
+# Instead of getting your IP address and potentially doxxing yourself, just ping Google's DNS
+# def get_external_ip():
+#     try:
+#         response = requests.get('https://ifconfig.co/ip')
+#         external_ip = response.text.strip()
+#         if external_ip is not None:
+#             print(f'Online with IP - {external_ip}')
+#         return external_ip
+#     except ConnectionError:
+#         print(f'Unable to determine External IP - check connection')
+#         return None
 
 
 def check_network_status():
-    external_ip = get_external_ip()
     try:
-        result = subprocess.run(['ping', '-n', '4', external_ip], stdout=subprocess.PIPE)
+        result = subprocess.run(['ping', '-n', '4', '8.8.8.8'], stdout=subprocess.PIPE)
         return result.returncode == 0
     except subprocess.CalledProcessError as e:
         print(f'Error in check_network_status \n{e}')
         return False
     except TypeError:
-        print(f'Error pinging external IP - check connection')
+        print(f'Error pinging Google DNS - check network connection')
         return False
 
 
@@ -71,10 +69,9 @@ def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
 
 
 def send_outage_email(start_time, end_time):
-    external_ip = get_external_ip()
     # Log the details and send an email to ISP support
     subject = 'Internet Outage Details'
-    body = f'Outage start time: {start_time}\nOutage end time: {end_time}\nIP Address: {external_ip}'
+    body = f'Outage start time: {start_time}\nOutage end time: {end_time}'
     send_email(subject, body, to_recipients, cc_recipients, bcc_recipients)
 
 
