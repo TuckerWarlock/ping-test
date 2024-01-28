@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 from emails import to_recipients, cc_recipients, bcc_recipients
+from logger import log_message
 
 
 # Load environment variables from .env
@@ -76,6 +77,7 @@ def send_outage_email(start_time, end_time):
 
 
 def main():
+    log_message('Script started...')
     outage_start_time = None
     outage = False
 
@@ -83,6 +85,7 @@ def main():
         current_time = time.strftime('%m-%d-%Y - %H:%M:%S%p')
 
         online = check_network_status()
+        log_message(f'Network status: {online}')
         # Network is offline
         if not online:
             if outage == False:
@@ -93,9 +96,12 @@ def main():
 
         # Network is back online
         if online and outage:
-            outage_end_time = time.strftime('%m-%d-%Y - %H:%M:%S%p')
+            outage_end_time = time.strftime('%m-%d-%Y %H:%M:%S%p')
             print(f'Internet back online at {outage_end_time}')
             outage = False
+            # Log outage in Windows
+            log_message(f'{outage_start_time} \n{outage_end_time}')
+
             # Log the details and send an email to ISP support
             send_outage_email(outage_start_time, outage_end_time)
 
