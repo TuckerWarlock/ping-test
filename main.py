@@ -80,7 +80,7 @@ def main():
     outage = False
 
     while True:
-        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+        current_time = time.strftime('%m-%d-%Y - %H:%M:%S%p')
 
         online = check_network_status()
         # Network is offline
@@ -93,7 +93,7 @@ def main():
 
         # Network is back online
         if online and outage:
-            outage_end_time = time.strftime('%Y-%m-%d %H:%M:%S')
+            outage_end_time = time.strftime('%m-%d-%Y - %H:%M:%S%p')
             print(f'Internet back online at {outage_end_time}')
             outage = False
             # Log the details and send an email to ISP support
