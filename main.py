@@ -7,6 +7,8 @@ from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 from emails import to_recipients, cc_recipients, bcc_recipients
 from logger import log_message
+import requests
+from requests import ConnectionError
 
 
 # Load environment variables from .env
@@ -17,22 +19,23 @@ email_password = os.getenv('EMAIL_PASSWORD')
 smtp_server = os.getenv('SMTP_SERVER')
 
 
-# Instead of getting your IP address and potentially doxxing yourself, just ping Google's DNS
-# def get_external_ip():
-#     try:
-#         response = requests.get('https://ifconfig.co/ip')
-#         external_ip = response.text.strip()
-#         if external_ip is not None:
-#             print(f'Online with IP - {external_ip}')
-#         return external_ip
-#     except ConnectionError:
-#         print(f'Unable to determine External IP - check connection')
-#         return None
+# Get your external IP and ping that, if you can't reach it, you're offline
+def get_external_ip():
+    try:
+        response = requests.get('https://ifconfig.co/ip')
+        external_ip = response.text.strip()
+        if external_ip is not None:
+            print(f'Online with IP - {external_ip}')
+        return external_ip
+    except ConnectionError:
+        print(f'Unable to determine External IP - check connection')
+        return None
 
 
 def check_network_status():
+    external_ip = get_external_ip()
     try:
-        result = subprocess.run(['ping', '-n', '4', '8.8.8.8'], stdout=subprocess.PIPE)
+        result = subprocess.run(['ping', '-n', '4', external_ip], stdout=subprocess.PIPE)
         return result.returncode == 0
     except subprocess.CalledProcessError as e:
         print(f'Error in check_network_status \n{e}')
@@ -62,11 +65,14 @@ def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
     message.attach(MIMEText(body, 'plain'))
 
     # Connect to the SMTP server and send the email
-    with smtplib.SMTP(smtp_server, 587) as server:
-        server.starttls()
-        server.login(sender_email, password)
-        all_recipients = to_emails + (cc_emails or []) + (bcc_emails or [])
-        server.sendmail(sender_email, all_recipients, message.as_string())
+    try:
+        with smtplib.SMTP(smtp_server, 587) as server:
+            server.starttls()
+            server.login(sender_email, password)
+            all_recipients = to_emails + (cc_emails or []) + (bcc_emails or [])
+            server.sendmail(sender_email, all_recipients, message.as_string())
+    except:
+        log_message('Unable to send email')
 
 
 def send_outage_email(start_time, end_time):
@@ -74,6 +80,7 @@ def send_outage_email(start_time, end_time):
     subject = 'Internet Outage Details'
     body = f'Outage start time: {start_time}\nOutage end time: {end_time}'
     send_email(subject, body, to_recipients, cc_recipients, bcc_recipients)
+    log_message('Outage email sent')
 
 
 def main():
@@ -82,15 +89,15 @@ def main():
     outage = False
 
     while True:
-        current_time = time.strftime('%m-%d-%Y - %H:%M:%S%p')
+        current_time = time.strftime('%m-%d-%Y %H:%M:%S%p')
 
         online = check_network_status()
-        log_message(f'Network status: {online}')
         # Network is offline
         if not online:
             if outage == False:
                 outage_start_time = current_time
                 print(f'Internet outage started at {outage_start_time}')
+                log_message(f'Network: {online}')
             outage = True
             continue
 
