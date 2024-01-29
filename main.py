@@ -35,17 +35,17 @@ def get_external_ip():
 def check_network_status():
     external_ip = get_external_ip()
     try:
-        result = subprocess.run(['ping', '-n', '4', external_ip], stdout=subprocess.PIPE)
+        result = subprocess.run(['ping', '-n', '4', '-w', '5000', external_ip], stdout=subprocess.PIPE)
         return result.returncode == 0
     except subprocess.CalledProcessError as e:
         print(f'Error in check_network_status \n{e}')
         return False
     except TypeError:
-        print(f'Error pinging Google DNS - check network connection')
+        print(f'Error pinging network')
         return False
 
 
-def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
+def send_email(subject, body, to_emails=None, cc_emails=None, bcc_emails=None):
     # Set up your email details
     sender_email = email_address
     password = email_password
@@ -53,7 +53,8 @@ def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
     # Create the email message
     message = MIMEMultipart()
     message['From'] = sender_email
-    message['To'] = ', '.join(to_emails)
+    if to_emails:
+        message['To'] = ', '.join(to_emails)
 
     if cc_emails:
         message['Cc'] = ', '.join(cc_emails)
@@ -61,6 +62,10 @@ def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
     if bcc_emails:
         message['Bcc'] = ', '.join(bcc_emails)
 
+    if not to_emails and not cc_emails and not bcc_emails:
+        log_message('No email addresses configured...')
+        return
+    
     message['Subject'] = subject
     message.attach(MIMEText(body, 'plain'))
 
@@ -69,10 +74,11 @@ def send_email(subject, body, to_emails, cc_emails=None, bcc_emails=None):
         with smtplib.SMTP(smtp_server, 587) as server:
             server.starttls()
             server.login(sender_email, password)
-            all_recipients = to_emails + (cc_emails or []) + (bcc_emails or [])
-            server.sendmail(sender_email, all_recipients, message.as_string())
-    except:
-        log_message('Unable to send email')
+            to_addr = (to_emails or [])
+            recipients = (cc_emails or []) + (bcc_emails or [])
+            server.sendmail(sender_email, to_addr + recipients, message.as_string())
+    except Exception as e:
+        log_message(f'Error sending email: {e}')
 
 
 def send_outage_email(start_time, end_time):
